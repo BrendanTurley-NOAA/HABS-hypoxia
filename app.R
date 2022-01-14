@@ -18,26 +18,19 @@ library(shiny)
 # setwd(files_wd)
 # interp <- read.csv('aquatroll_data_interp.csv')
 # data <- read.csv('all_report_shiny3.csv')
-# files_wd <- '~/Documents/R/Github/FCWC-data-processing/R_code/shiny_app/'
-# setwd(files_wd)
-interp <- read.csv('data/aquatroll_data_interp.csv')
-data <- read.csv('data/all_report_shiny3.csv')
-data$Date <- ymd_hms(data$Date)
+files_wd <- '~/Documents/R/Github/HABS-hypoxia'
+setwd(files_wd)
+# stations <- read.csv('data/stations_data.csv')
+data <- read.csv('data/ctd_data.csv',check.names = F)
+data$Date <- ymd(data$Date)
 min.Date <- as.Date(min(data$Date))
-data <- data[-which(is.na(data$Longitude)),]
-data$Bottom.Dissolved.Oxygen[which(data$Bottom.Dissolved.Oxygen<0)] <- NA
-data <- data[-which(is.na(data$Bottom.Dissolved.Oxygen)),]
-### there is no data for April or June right now
-box_data <- data.frame(date=c(data$Date,
-                              seq(as.Date('2020-01-01'),as.Date('2020-12-01'),'months')),
-                       surf_t=c(data$Surface.Temperature,rep(NA,12)),
-                       bot_t=c(data$Bottom.Temperature,rep(NA,12)),
-                       surf_do=c(data$Surface.Dissolved.Oxygen,rep(NA,12)),
-                       bot_do=c(data$Bottom.Dissolved.Oxygen,rep(NA,12)))
 
 t_col <- colorRampPalette(c(1,'purple','darkorange','gold'))
-t_breaks <- seq(18,38,by=.5)
+t_breaks <- seq(13.5,33,by=.5)
 t_cols <- t_col(length(t_breaks))
+s_col <- colorRampPalette(c('purple4','dodgerblue4','seagreen3','khaki1'))
+s_breaks <- seq(28,38,by=.5)
+s_cols <- s_col(length(s_breaks))
 ox.col1 <- colorRampPalette(c('darkred','red2','sienna1'))
 ox.col2 <- colorRampPalette(c('darkgoldenrod4','goldenrod2','gold'))
 # ox.col3 <- colorRampPalette(c('dodgerblue4','deepskyblue2','cadetblue1'))
@@ -61,8 +54,8 @@ ui <- fluidPage(
                                            max    = NULL,
                                            format = "yyyy-mm-dd",
                                            separator = " - "),
-                            selectInput('parameter', 'Parameter', names(data)[6:9], selected='Bottom.Dissolved.Oxygen'),
-                            selectInput('serial_num', 'Serial Number', c('all',sort(unique(data$aquatroll_sn)))),
+                            selectInput('parameter', 'Parameter', names(data)[4:7], selected='Bottom Dissolved Oxygen'),
+                            # selectInput('project', 'project', c('all',sort(unique(data$project)))),
                             radioButtons('format', 'Document format', c('PDF', 'HTML', 'Word'),
                                          inline = TRUE),
                             downloadButton('downloadReport'),
@@ -72,17 +65,6 @@ ui <- fluidPage(
                             h6('Click on any point on the map and the data will pop up and depth profiles will be displayed below map'),
                             leafletOutput("map",height=600),
                             verbatimTextOutput("map_marker_click"),
-                            hr(),
-                            h3('Depth profiles'),
-                            h6('Depth profiles will be displayed after clicking a marker on map above'),
-                            fluidRow(
-                              column(width = 6, plotOutput(outputId = "t_profile")),
-                              column(width = 6, plotOutput(outputId = "s_profile"))
-                            ),
-                            fluidRow(
-                              column(width = 6, plotOutput(outputId = "c_profile")),
-                              column(width = 6, plotOutput(outputId = "o_profile"))
-                            ),
                             hr(),
                             h3('Time series plot'),
                             h6('Click on any point below and the the data will be displayed below the plot'),
@@ -121,43 +103,43 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   
   out <- reactive({
-    if(input$serial_num=='all'){
+    # if(input$project=='all'){
       data[which(data$Date>=ymd(input$daterange1[1]) &
                    data$Date<=ymd(input$daterange1[2])),
            # which(names(data)==input$parameter)
       ]
-    } else {
-      data[which(data$Date>=ymd(input$daterange1[1]) &
-                   data$Date<=ymd(input$daterange1[2]) & 
-                   data$aquatroll_sn==input$serial_num),
-           # which(names(data)==input$parameter)
-      ]
-    }
+    # } else {
+    #   data[which(data$Date>=ymd(input$daterange1[1]) &
+    #                data$Date<=ymd(input$daterange1[2]) & 
+    #                data$project==input$project),
+    #        # which(names(data)==input$parameter)
+    #   ]
+    # }
   })
   
   output$ts_plot <- renderPlot({
-    if(input$parameter=='Surface.Temperature'){
-      t_i <- as.numeric(cut(out()$Surface.Temperature,t_breaks))
+    if(input$parameter=='Mixed-layer Temperature'){
+      t_i <- as.numeric(cut(out()$'Mixed-layer Temperature',t_breaks))
       bg <- t_cols[t_i]
-      parm <- out()$Surface.Temperature
-      ylab <- 'Surface Temperature (C)'
+      parm <- out()$'Mixed-layer Temperature'
+      ylab <- 'Mixed-layer Temperature (C)'
     }
-    if(input$parameter=='Bottom.Temperature'){
-      t_i <- as.numeric(cut(out()$Bottom.Temperature,t_breaks))
+    if(input$parameter=='Mixed-layer Salinity'){
+      s_i <- as.numeric(cut(out()$'Mixed-layer Salinity',s_breaks))
+      bg <- s_cols[s_i]
+      parm <- out()$'Mixed-layer Salinity'
+      ylab <- 'Mixed-layer Salinity (psu)'
+    }
+    if(input$parameter=='Bottom Temperature'){
+      t_i <- as.numeric(cut(out()$'Bottom Temperature',t_breaks))
       bg <- t_cols[t_i]
-      parm <- out()$Bottom.Temperature
+      parm <- out()$'Bottom Temperature'
       ylab <- 'Bottome Temperature (C)'
     }
-    if(input$parameter=='Surface.Dissolved.Oxygen'){
-      o_i <- as.numeric(cut(out()$Surface.Dissolved.Oxygen,o_breaks))
+    if(input$parameter=='Bottom Dissolved Oxygen'){
+      o_i <- as.numeric(cut(out()$'Bottom Dissolved Oxygen',o_breaks))
       bg <- o_cols[o_i]
-      parm <- out()$Surface.Dissolved.Oxygen
-      ylab <- 'Surface Dissolved Oxygen (mg/l)'
-    }
-    if(input$parameter=='Bottom.Dissolved.Oxygen'){
-      o_i <- as.numeric(cut(out()$Bottom.Dissolved.Oxygen,o_breaks))
-      bg <- o_cols[o_i]
-      parm <- out()$Bottom.Dissolved.Oxygen
+      parm <- out()$'Bottom Dissolved Oxygen'
       ylab <- 'Bottom Dissolved Oxygen (mg/l)'
     }
     
@@ -171,38 +153,39 @@ server <- function(input, output, session) {
   
   output$boxplot <- renderPlot({
     
-    if(input$parameter=='Surface.Temperature'){
-      t_i <- as.numeric(cut(out()$Surface.Temperature,t_breaks))
+    if(input$parameter=='Mixed-layer Temperature'){
+      t_i <- as.numeric(cut(out()$'Mixed-layer Temperature',t_breaks))
       bg <- t_cols[t_i]
-      all_y <- box_data$surf_t
-      ylab <- 'Surface Temperature (C)'
-      select_y <- out()$Surface.Temperature
+      all_y <- data$`Mixed-layer Temperature`
+      ylab <- 'Mixed-layer Temperature (C)'
+      select_y <- out()$`Mixed-layer Temperature`
     }
-    if(input$parameter=='Bottom.Temperature'){
-      t_i <- as.numeric(cut(out()$Bottom.Temperature,t_breaks))
+    if(input$parameter=='Mixed-layer Salinity'){
+      s_i <- as.numeric(cut(out()$'Mixed-layer Salinity',s_breaks))
+      bg <- s_cols[s_i]
+      all_y <- data$`Mixed-layer Salinity`
+      ylab <- 'Mixed-layer Salinity (psu)'
+      select_y <- out()$`Mixed-layer Salinity`
+    }
+    if(input$parameter=='Bottom Temperature'){
+      t_i <- as.numeric(cut(out()$'Bottom Temperature',t_breaks))
       bg <- t_cols[t_i]
-      all_y <- box_data$bot_t
-      ylab <- 'Bottom Temperature (C)'
-      select_y <- out()$Bottom.Temperature
+      all_y <- data$`Bottom Temperature`
+      ylab <- 'Bottome Temperature (C)'
+      select_y <- out()$'Bottom Temperature'
     }
-    if(input$parameter=='Surface.Dissolved.Oxygen'){
-      o_i <- as.numeric(cut(out()$Surface.Dissolved.Oxygen,o_breaks))
+    if(input$parameter=='Bottom Dissolved Oxygen'){
+      o_i <- as.numeric(cut(out()$'Bottom Dissolved Oxygen',o_breaks))
       bg <- o_cols[o_i]
-      all_y <- box_data$surf_do
-      ylab <- 'Surface Dissolved Oxygen (mg/l)'
-      select_y <- out()$Surface.Dissolved.Oxygen
-    }
-    if(input$parameter=='Bottom.Dissolved.Oxygen'){
-      o_i <- as.numeric(cut(out()$Bottom.Dissolved.Oxygen,o_breaks))
-      bg <- o_cols[o_i]
-      all_y <- box_data$bot_do
+      all_y <- data$'Bottom Dissolved Oxygen'
       ylab <- 'Bottom Dissolved Oxygen (mg/l)'
-      select_y <- out()$Bottom.Dissolved.Oxygen
+      select_y <- out()$'Bottom Dissolved Oxygen'
     }
     
-    boxplot(all_y~month(box_data$date),na.action = na.pass,
+    boxplot(all_y~month(data$Date),na.action = na.pass,
             xlab='Month',ylab=ylab,col='lightskyblue1',
-            staplewex=0,outwex=0,outline=F,lty=1,lwd=1.5,names=month.abb[1:12],las=2)
+            staplewex=0,outwex=0,outline=F,lty=1,lwd=1.5,names=month.abb[1:12],las=2,
+            ylim=c(0,11))
     # mtext('Climatology Plot',cex=2,adj=0,font=2,line=1)
     points(jitter(month(out()$Date),3,.3),select_y,
            bg=bg,pch=21,cex=1.5)
@@ -224,39 +207,39 @@ server <- function(input, output, session) {
   
   observe({
     
-    if(input$parameter=='Surface.Temperature'){
-      t_i <- as.numeric(cut(out()$Surface.Temperature,t_breaks))
+    if(input$parameter=='Mixed-layer Temperature'){
+      t_i <- as.numeric(cut(out()$'Mixed-layer Temperature',t_breaks))
       cols <- t_cols[t_i]
       unit <- 'Temperature (C):'
-      vals <- round(out()$Surface.Temperature,2)
+      vals <- round(out()$'Mixed-layer Temperature',2)
       ext <- 1/2
     }
-    if(input$parameter=='Bottom.Temperature'){
-      t_i <- as.numeric(cut(out()$Bottom.Temperature,t_breaks))
+    if(input$parameter=='Mixed-layer Salinity'){
+      s_i <- as.numeric(cut(out()$'Mixed-layer Salinity',s_breaks))
+      cols <- s_cols[s_i]
+      unit <- 'Salinity (psu):'
+      vals <- round(out()$'Mixed-layer Salinity',2)
+      ext <- 1/2
+    }
+    if(input$parameter=='Bottom Temperature'){
+      t_i <- as.numeric(cut(out()$'Bottom Temperature',t_breaks))
       cols <- t_cols[t_i]
       unit <- 'Temperature (C):'
-      vals <- round(out()$Bottom.Temperature,2)
+      vals <- round(out()$'Bottom Temperature',2)
       ext <- 1/2
-    }
-    if(input$parameter=='Surface.Dissolved.Oxygen'){
-      o_i <- as.numeric(cut(out()$Surface.Dissolved.Oxygen,o_breaks))
-      cols <- o_cols[o_i]
-      unit <- 'DO (mg/l):'
-      vals <- round(out()$Surface.Dissolved.Oxygen,2)
-      ext <- 2.5
     } 
-    if(input$parameter=='Bottom.Dissolved.Oxygen'){
-      o_i <- as.numeric(cut(out()$Bottom.Dissolved.Oxygen,o_breaks))
+    if(input$parameter=='Bottom Dissolved Oxygen'){
+      o_i <- as.numeric(cut(out()$'Bottom Dissolved Oxygen',o_breaks))
       cols <- o_cols[o_i]
       unit <- 'DO (mg/l):'
-      vals <- round(out()$Bottom.Dissolved.Oxygen,2)
+      vals <- round(out()$'Bottom Dissolved Oxygen',2)
       ext <- 2.5
     }
     
     leafletProxy("map", data = out()) %>%
       clearMarkers() %>%
       addCircleMarkers(~Longitude, ~Latitude,
-                       radius = vals*ext,
+                       # radius = vals*ext,
                        fillColor = cols,
                        stroke = T,
                        color='black',
@@ -270,24 +253,24 @@ server <- function(input, output, session) {
   })
   
   observe({
-    if(input$parameter=='Surface.Temperature'){
+    if(input$parameter=='Mixed-layer Temperature'){
       os <- colorBin(t_cols,t_breaks,bins=t_breaks[seq(1,16,2)])
-      values <- out()$Surface.Temperature
+      values <- out()$'Mixed-layer Temperature'
       title <- 'Temperature (C)'
     }
-    if(input$parameter=='Bottom.Temperature'){
-      os <- colorBin(t_cols,t_breaks,bins=t_breaks[seq(1,16,2)])
-      values <- out()$Bottom.Temperature
+    if(input$parameter=='Mixed-layer Salinity'){
+      os <- colorBin(s_cols,s_breaks,bins=s_breaks[seq(1,16,2)])
+      values <- out()$'Mixed-layer Salinity'
+      title <- 'Salintiy (psu)'
+    }
+    if(input$parameter=='Bottom Temperature'){
+      os <- colorBin(t_cols,t_breaks,bins=t_breaks[seq(1,23,2)])
+      values <- out()$'Bottom Temperature'
       title <- 'Temperature (C)'
     }
-    if(input$parameter=='Surface.Dissolved.Oxygen'){
+    if(input$parameter=='Bottom Dissolved Oxygen'){
       os <- colorBin(o_cols,o_breaks,bins=o_breaks[seq(1,23,2)])
-      values <- out()$Surface.Dissolved.Oxygen
-      title <- 'Oxygen (mg/l)'
-    }
-    if(input$parameter=='Bottom.Dissolved.Oxygen'){
-      os <- colorBin(o_cols,o_breaks,bins=o_breaks[seq(1,23,2)])
-      values <- out()$Bottom.Dissolved.Oxygen
+      values <- out()$'Bottom Dissolved Oxygen'
       title <- 'Oxygen (mg/l)'
     }
     leafletProxy("map", data = out()) %>%
@@ -323,99 +306,39 @@ server <- function(input, output, session) {
   #   }
   # })
   
-  output$info <- renderText({
-    if(input$parameter=='Surface.Temperature' | 
-       input$parameter=='Bottom.Temperature' ){
-      y_click <- "\nTemperature (C): "
-    }
-    if(input$parameter=='Bottom.Dissolved.Oxygen' | 
-       input$parameter=='Surface.Dissolved.Oxygen' ){
-      y_click <- "\nDissolved Oxygen (mg/l): "
-    }
-    paste0("Date (UTC): ", as.POSIXct(input$plot_click$x, origin = "1970-01-01"),
-           y_click, round(as.numeric(input$plot_click$y),2))
-  })
-  
-  output$info2 <- renderText({
-    if(input$parameter=='Surface.Temperature' | 
-       input$parameter=='Bottom.Temperature' ){
-      y_click <- "Temperature (C): "
-    }
-    if(input$parameter=='Bottom.Dissolved.Oxygen' | 
-       input$parameter=='Surface.Dissolved.Oxygen' ){
-      y_click <- "Dissolved Oxygen (mg/l): "
-    }
-    paste0(y_click, round(as.numeric(input$plot_click2$y),2))
-  })
-  
-  output$map_marker_click <- renderText({
-    details <- unlist(out()[which(out()$Latitude==input$map_marker_click$lat &
-                                    out()$Longitude==input$map_marker_click$lng),])[6:9]
-    paste('Surface Temperature (C):',round(as.numeric(details[1]),2),
-          '\nBottom Temperature (C):',round(as.numeric(details[2]),2),
-          '\nSurface Dissolved Oxygen (mg/l):',round(as.numeric(details[3]),2),
-          '\nBottom Dissolved Oxygen (mg/l):',round(as.numeric(details[4]),2))
-  })
-  
-  output$t_profile <- renderPlot({
-    click <- input$map_marker_click
-    if (is.null(click)){
-      return()
-    }
-    details <- unlist(out()[which(out()$Latitude==input$map_marker_click$lat &
-                                    out()$Longitude==input$map_marker_click$lng),])[1]
-    select_profile <- interp[which(interp$profile.index==details),]
-    
-    par(mar=c(4,4,1,1))
-    plot(select_profile$temp_c,-select_profile$depth_m,
-         typ='l',lwd=2,col='blue',las=1,
-         xlab='Temperature (C)', ylab='Depth (m)')
-  })
-  
-  output$s_profile <- renderPlot({
-    click <- input$map_marker_click
-    if (is.null(click)){
-      return()
-    }
-    details <- unlist(out()[which(out()$Latitude==input$map_marker_click$lat &
-                                    out()$Longitude==input$map_marker_click$lng),])[1]
-    select_profile <- interp[which(interp$profile.index==details),]
-    
-    par(mar=c(4,4,1,1))
-    plot(select_profile$sal_psu,-select_profile$depth_m,
-         typ='l',lwd=2,col='purple',las=1,
-         xlab='Salinity (psu)', ylab='Depth (m)')
-  })
-  
-  output$c_profile <- renderPlot({
-    click <- input$map_marker_click
-    if (is.null(click)){
-      return()
-    }
-    details <- unlist(out()[which(out()$Latitude==input$map_marker_click$lat &
-                                    out()$Longitude==input$map_marker_click$lng),])[1]
-    select_profile <- interp[which(interp$profile.index==details),]
-    
-    par(mar=c(4,4,1,1))
-    plot(select_profile$chl_rfu,-select_profile$depth_m,
-         typ='l',lwd=2,col='forestgreen',las=1,
-         xlab='Chlorophyll (RFU)', ylab='Depth (m)')
-  })
-  
-  output$o_profile <- renderPlot({
-    click <- input$map_marker_click
-    if (is.null(click)){
-      return()
-    }
-    details <- unlist(out()[which(out()$Latitude==input$map_marker_click$lat &
-                                    out()$Longitude==input$map_marker_click$lng),])[1]
-    select_profile <- interp[which(interp$profile.index==details),]
-    
-    par(mar=c(4,4,1,1))
-    plot(select_profile$do_mgl,-select_profile$depth_m,
-         typ='l',lwd=2,col='red',las=1,
-         xlab='Dissolved Oxygen (mg/l)', ylab='Depth (m)')
-  })
+  # output$info <- renderText({
+  #   if(input$parameter=='Surface.Temperature' | 
+  #      input$parameter=='Bottom.Temperature' ){
+  #     y_click <- "\nTemperature (C): "
+  #   }
+  #   if(input$parameter=='Bottom.Dissolved.Oxygen' | 
+  #      input$parameter=='Surface.Dissolved.Oxygen' ){
+  #     y_click <- "\nDissolved Oxygen (mg/l): "
+  #   }
+  #   paste0("Date (UTC): ", as.POSIXct(input$plot_click$x, origin = "1970-01-01"),
+  #          y_click, round(as.numeric(input$plot_click$y),2))
+  # })
+  # 
+  # output$info2 <- renderText({
+  #   if(input$parameter=='Surface.Temperature' | 
+  #      input$parameter=='Bottom.Temperature' ){
+  #     y_click <- "Temperature (C): "
+  #   }
+  #   if(input$parameter=='Bottom.Dissolved.Oxygen' | 
+  #      input$parameter=='Surface.Dissolved.Oxygen' ){
+  #     y_click <- "Dissolved Oxygen (mg/l): "
+  #   }
+  #   paste0(y_click, round(as.numeric(input$plot_click2$y),2))
+  # })
+  # 
+  # output$map_marker_click <- renderText({
+  #   details <- unlist(out()[which(out()$Latitude==input$map_marker_click$Latitude &
+  #                                   out()$Longitude==input$map_marker_click$lng),])[6:9]
+  #   paste('Surface Temperature (C):',round(as.numeric(details[1]),2),
+  #         '\nBottom Temperature (C):',round(as.numeric(details[2]),2),
+  #         '\nSurface Dissolved Oxygen (mg/l):',round(as.numeric(details[3]),2),
+  #         '\nBottom Dissolved Oxygen (mg/l):',round(as.numeric(details[4]),2))
+  # })
   
   output$downloadReport <- downloadHandler(
     filename = function() {
